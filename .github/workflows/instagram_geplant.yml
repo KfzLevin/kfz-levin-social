@@ -1,0 +1,32 @@
+name: Geplante Instagram-Posts
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # alle 15 Minuten pruefen (GitHub kann einige Minuten verspaetet starten)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: instagram-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install requests
+      - name: Faellige Posts veroeffentlichen
+        env:
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+        run: python scripts/post_due.py
+      - name: Erledigte Posts festhalten
+        if: always()
+        run: |
+          git config user.name "kfzlevin-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A queue
+          git diff --cached --quiet || (git commit -m "Geplante Posts veroeffentlicht" && git push)
