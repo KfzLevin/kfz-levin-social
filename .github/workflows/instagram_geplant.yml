@@ -2,7 +2,7 @@ name: Geplante Instagram-Posts
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # alle 15 Minuten pruefen (GitHub kann einige Minuten verspaetet starten)
+    - cron: "7,22,37,52 * * * *"   # alle 15 Min, bewusst nicht zur vollen Stunde (GitHub-Lastspitzen)
   workflow_dispatch:
 
 permissions:
