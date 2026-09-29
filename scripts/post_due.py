@@ -1,6 +1,7 @@
 """Laeuft in GitHub Actions: veroeffentlicht alle faelligen Posts aus queue/*.json.
 
 Eintrag: {"zeit": "2026-09-29 19:00", "image_url": "...", "caption": "...", "ai": true}
+Karussell (mehrere Bilder): statt "image_url" -> "image_urls": ["...", "..."]
 "zeit" ist deutsche Ortszeit. Nach dem Posten wird die Datei nach queue/done/ verschoben.
 """
 
@@ -20,13 +21,7 @@ TOKEN = os.environ["INSTAGRAM_ACCESS_TOKEN"]
 TZ = ZoneInfo("Europe/Berlin")
 
 
-def post(entry: dict) -> str:
-    data = {"image_url": entry["image_url"], "caption": entry["caption"], "access_token": TOKEN}
-    if entry.get("ai"):
-        data["is_ai_generated"] = "true"
-    r = requests.post(f"{GRAPH_URL}/{ACCOUNT_ID}/media", data=data)
-    r.raise_for_status()
-    cid = r.json()["id"]
+def wait_ready(cid: str) -> None:
     for _ in range(30):
         s = requests.get(f"{GRAPH_URL}/{cid}", params={"fields": "status_code", "access_token": TOKEN})
         s.raise_for_status()
@@ -36,6 +31,25 @@ def post(entry: dict) -> str:
         if status == "ERROR":
             raise RuntimeError(f"Container {cid} fehlgeschlagen")
         time.sleep(2)
+
+
+def create(data: dict) -> str:
+    r = requests.post(f"{GRAPH_URL}/{ACCOUNT_ID}/media", data={**data, "access_token": TOKEN})
+    r.raise_for_status()
+    cid = r.json()["id"]
+    wait_ready(cid)
+    return cid
+
+
+def post(entry: dict) -> str:
+    data = {"caption": entry["caption"]}
+    if entry.get("ai"):
+        data["is_ai_generated"] = "true"
+    if entry.get("image_urls"):
+        children = [create({"image_url": u, "is_carousel_item": "true"}) for u in entry["image_urls"]]
+        cid = create({**data, "media_type": "CAROUSEL", "children": ",".join(children)})
+    else:
+        cid = create({**data, "image_url": entry["image_url"]})
     r = requests.post(f"{GRAPH_URL}/{ACCOUNT_ID}/media_publish", data={"creation_id": cid, "access_token": TOKEN})
     r.raise_for_status()
     return r.json()["id"]
